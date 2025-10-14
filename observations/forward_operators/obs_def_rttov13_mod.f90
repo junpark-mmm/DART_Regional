@@ -271,6 +271,7 @@
 ! GF5_1_VIMS_RADIANCE,          QTY_RADIANCE
 ! HY2_1_MWRI_TB,                QTY_BRIGHTNESS_TEMPERATURE
 ! CLOUDSAT_1_CPR_TB,            QTY_BRIGHTNESS_TEMPERATURE 
+! HYDROSAT_TB,                  QTY_BRIGHTNESS_TEMPERATURE 
 ! END DART PREPROCESS TYPE DEFINITIONS
 
 ! BEGIN DART PREPROCESS USE OF SPECIAL OBS_DEF MODULE
@@ -282,25 +283,25 @@
 
 
 ! BEGIN DART PREPROCESS GET_EXPECTED_OBS_FROM_DEF
-!      case(NOAA_1_VTPR1_RADIANCE:CLOUDSAT_1_CPR_TB)
+!      case(NOAA_1_VTPR1_RADIANCE:HYDROSAT_TB)
 !         call get_expected_radiance(obs_kind_ind, state_handle, ens_size, location, obs_def%key, get_obs_def_type_of_obs(obs_def), expected_obs, istatus)
 ! END DART PREPROCESS GET_EXPECTED_OBS_FROM_DEF
 
 
 ! BEGIN DART PREPROCESS READ_OBS_DEF
-!   case(NOAA_1_VTPR1_RADIANCE:CLOUDSAT_1_CPR_TB)
+!   case(NOAA_1_VTPR1_RADIANCE:HYDROSAT_TB)
 !      call read_rttov_metadata(obs_def%key, key, ifile, fform)
 ! END DART PREPROCESS READ_OBS_DEF
 
 
 ! BEGIN DART PREPROCESS WRITE_OBS_DEF
-!   case(NOAA_1_VTPR1_RADIANCE:CLOUDSAT_1_CPR_TB)
+!   case(NOAA_1_VTPR1_RADIANCE:HYDROSAT_TB)
 !      call write_rttov_metadata(obs_def%key, ifile, fform)
 ! END DART PREPROCESS WRITE_OBS_DEF
 
 
 ! BEGIN DART PREPROCESS INTERACTIVE_OBS_DEF
-!   case(NOAA_1_VTPR1_RADIANCE:CLOUDSAT_1_CPR_TB)
+!   case(NOAA_1_VTPR1_RADIANCE:HYDROSAT_TB)
 !      call interactive_rttov_metadata(obs_def%key)
 ! END DART PREPROCESS INTERACTIVE_OBS_DEF
 
@@ -4287,7 +4288,7 @@ function get_channel(flavor, key) result(channel)
    ! If the observation is not supported by this module, there is no channel
    ! This is delicate in that all types supported by this module are consecutively
    ! numbered. If new types are added, this will need to change.
-   if (flavor < NOAA_1_VTPR1_RADIANCE .or. flavor > CLOUDSAT_1_CPR_TB) return
+   if (flavor < NOAA_1_VTPR1_RADIANCE .or. flavor > HYDROSAT_TB) return
 
    ! Retrieve channel from different metadata types
    ! All the other arguments are mandatory, but not needed here.

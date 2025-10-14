@@ -84,6 +84,8 @@ c    Namelist Parameters
 c----------------------------------------------------------------------
 
       integer :: qctype_use(max_otype)  ! qc values to accept (default all)
+      integer :: sfc_qctype_use(max_otype) ! qc value to accept for SFC
+
       real :: otype_use(max_otype),     ! report types to use (default all)
      +        obs_window       = 1.5,   ! observation time window (+/-hours)
      +        obs_window_upa   = 1.5,   ! sonde time window (+/-hours)
@@ -101,6 +103,7 @@ c----------------------------------------------------------------------
      +                         obs_window_cw,
      +                         otype_use,
      +                         qctype_use,
+     +                         sfc_qctype_use,
      +                         land_temp_error,
      +                         land_wind_error,
      +                         land_moist_error
@@ -125,6 +128,7 @@ c    read the prep_bufr_nml namelist from input.nml
 c----------------------------------------------------------------------
        
       otype_use(:) = MISSING;  qctype_use(:) = I_MISSING
+      sfc_qctype_use(:) = I_MISSING
       inml_unit = 15
       open(inml_unit,file='input.nml', status='old',
      &        access='sequential', form='formatted')
@@ -141,6 +145,12 @@ c----------------------------------------------------------------------
       do i = 1, max_qctype
         if ( qctype_use(i) .eq. MISSING ) exit
         inum_qctype = inum_qctype + 1
+      enddo
+
+      inum_sfc_qctype=0
+      do i = 1, max_qctype
+        if ( sfc_qctype_use(i) .eq. MISSING ) exit
+        inum_sfc_qctype = inum_sfc_qctype + 1
       enddo
 
 c     overwrite observation windows if obs_window is defined
@@ -409,7 +419,11 @@ c----------------------------------------------------------------------
         if(subset(1:6).eq.'ADPUPA' .or. subset(1:6).eq.'ADPSFC' .or.
      &     subset(1:6).eq.'SFCSHP' ) then
 
-          qoe  = evns(7, lv, j2q, 2) * 0.1     ! g/kg   
+          if(subset(1:6).eq.'ADPUPA' ) then ! set 10% of RH Error
+             qoe = 0.1   
+          else
+             qoe  = evns(7, lv, j2q, 2) * 0.1     ! g/kg   
+          endif
           qob  = evns(1, lv, j2q, 2) * 1.0e-3  ! g/kg
           qqm  = evns(2, lv, j2q, 2) 
           pc_q = evns(3, lv, j2q, 2)
@@ -503,13 +517,32 @@ c----------------------------------------------------------------------
 
         if (subset(1:6).eq.'SFCSHP' .or. subset(1:6).eq.'ADPSFC') then
 
-          if (use_this_data_int(tqm,qctype_use,inum_qctype) .and.
-     &        use_this_data_int(pqm,qctype_use,inum_qctype) .and. 
-     &        tob .lt. 1.0e9 ) then
+       if (use_this_data_int(tqm,sfc_qctype_use,inum_sfc_qctype) .and.
+     &     use_this_data_int(pqm,sfc_qctype_use,inum_sfc_qctype) .and.
+     &     tob .lt. 1.0e9 ) then
+c          if (use_this_data_int(tqm,qctype_use,inum_qctype) .and.
+c     &        use_this_data_int(pqm,qctype_use,inum_qctype) .and. 
+c     &        tob .lt. 1.0e9 ) then
  
             if ( ttype .gt. 200 )  ttype = ttype - 100
             if ( ttype .eq. 184 )  ttype = 183
- 
+
+           ! t should be okay since ttype is already minus by 100.
+           ! set toe depending on the ttype
+           if ( ttype .eq. 180 ) then
+               toe = 1.8 ! T 2.0 MARINE | Mar 28 2025 -> 1.8
+           else if ( ttype .eq. 181 ) then
+               toe = 1.7 ! T 1.7 LAND
+           else if ( ttype .eq. 183 .or. ttype .eq. 184 ) then
+               if (subset(1:6).eq.'SFCSHP') then
+                    toe = 1.8 ! T 2.0 MARINE ! Mar 28 2025 -> 1.8
+               else if (subset(1:6).eq.'ADPSFC') then
+                    toe = 1.7 ! T 1.7 LAND
+               endif
+           else if ( ttype .eq. 187 ) then
+                    toe = 1.5 ! T 1.7 METAR | Mar 28 2025 -> 1.5
+           endif
+
             tdata(1) = toe
             if ( toe .ge. 1.e9 ) tdata(1) = land_temp_error
             tdata(4) = zob
@@ -590,17 +623,42 @@ c----------------------------------------------------------------------
 
         if (subset(1:6).eq.'SFCSHP' .or. subset(1:6).eq.'ADPSFC') then
 
-          if (use_this_data_int(qqm,qctype_use,inum_qctype) .and.
-     &        use_this_data_int(pqm,qctype_use,inum_qctype) .and.
-     &        qob .lt. 1.0e9                                ) then
+      if (use_this_data_int(qqm,sfc_qctype_use,inum_sfc_qctype) .and.
+     &    use_this_data_int(pqm,sfc_qctype_use,inum_sfc_qctype) .and.
+c      to fix issue with OBS having ****
+     &    qob .lt. 70.                                   ) then 
+c     &    qob .lt. 1.0e9                                ) then
+c          if (use_this_data_int(qqm,qctype_use,inum_qctype) .and.
+c     &        use_this_data_int(pqm,qctype_use,inum_qctype) .and.
+c     &        qob .lt. 1.0e9                                ) then
 
            es   = es0 * (tob / t0) ** fact1 * exp(fact2*(fact3-1./tob))
            qsat = eps * es / (pob - omeps * es)
            if (qoe .gt. 1.e9) qoe = land_moist_error
-           qoe_rh = qoe
-           qoe  = max(0.1, qoe * qsat * 1000.0) ! to g/kg, set min value
 
-           if( .not. use_this_data_int(tqm,qctype_use,inum_qctype)) then
+           ! set qoe depending on the qtype
+           ! q may have issues since qtype is corrected later
+           if ( qtype .eq. 180 .or. qtype .eq. 280) then
+               qoe = 0.08 ! RH 0.15 MARINE  ! Mar 28 2025 -> 0.08
+           else if ( qtype .eq. 181 .or. qtype .eq. 281 ) then
+               qoe = 0.08 ! RH 0.13 LAND    ! Mar 28 2025 -> 0.08
+           else if (    qtype .eq. 183 .or. qtype .eq. 184
+     &       .or.  qtype .eq. 283 .or. qtype .eq. 284 ) then
+               if (subset(1:6).eq.'SFCSHP') then
+                    qoe = 0.08 ! RH 0.15 MARINE  ! Mar 28 2025 -> 0.08
+               else if (subset(1:6).eq.'ADPSFC') then
+                    qoe = 0.08 ! RH 0.13 LAND    ! Mar 28 2025 -> 0.08
+               endif
+           else if ( qtype .eq. 187 .or. qtype .eq. 287) then
+               qoe = 0.07 ! RH 0.1 METAR ! Mar 28 2025 -> 0.07
+           endif
+
+            qoe_rh = qoe
+            qoe  = max(0.1, qoe * qsat * 1000.0) ! to g/kg, set min value
+
+c           if( .not. use_this_data_int(tqm,qctype_use,inum_qctype)) then
+           if ( .not. 
+     &     use_this_data_int(tqm,sfc_qctype_use,inum_sfc_qctype)) then
              if ( debug ) print*, 'surface bad = ', qoe  
 c             ! the T obs cannot be used for qoe
              qoe = 1.0e10
@@ -651,11 +709,26 @@ c----------------------------------------------------------------------
         if (subset(1:6).eq.'ADPUPA' .or. 
      &      subset(1:6).eq.'SFCSHP' .or. subset(1:6).eq.'ADPSFC') then
 
-          if(use_this_data_int(pqm,qctype_use,inum_qctype) .and. 
-     &       poe.lt.1.e9 .and. pob.lt.1.e9 .and. stat_elv.eq.zob) then
-
             if ( ptype .gt. 200 )  ptype = ptype - 100
             if ( ptype .eq. 184 )  ptype = 183
+           ! p should be okay since ptype is already minus by 100.
+           ! set poe depending on the ptype
+           if ( ptype .eq. 180 ) then
+               poe = 1.2 ! PSFC 1.3 MARINE | Mar 28 2024 -> 1.2
+           else if ( ptype .eq. 181 ) then
+               poe = 1.0 ! PSFC 1.2 LAND/METAR | Mar 28 2024 -> 1.0
+           else if ( ptype .eq. 183 .or. ptype .eq. 184 ) then
+               if (subset(1:6).eq.'SFCSHP') then
+                    poe = 1.2 ! PSFC 1.3 MARINE | Mar 28 2024 -> 1.2
+               else if (subset(1:6).eq.'ADPSFC') then
+                    poe = 1.0 ! PSFC 1.2 LAND/METAR | Mar 28 2024 -> 1.0
+               endif
+           else if ( ptype .eq. 187 ) then
+               poe = 1.0 ! PSFC 1.2 LAND/METAR | Mar 28 2024 -> 1.0
+           end if
+
+          if(use_this_data_int(pqm,qctype_use,inum_qctype) .and. 
+     &       poe.lt.1.e9 .and. pob.lt.1.e9 .and. stat_elv.eq.zob) then
 
             pdata(1) = poe
             pdata(4) = zob
@@ -711,18 +784,31 @@ c----------------------------------------------------------------------
 
         if (subset(1:6).eq.'SFCSHP' .or. subset(1:6).eq.'ADPSFC' ) then
 
-          if (use_this_data_int(uqm,qctype_use,inum_qctype) .and.
-     &        use_this_data_int(pqm,qctype_use,inum_qctype) .and. 
-     &        uob .lt. 1.e9                                 ) then
+      if (use_this_data_int(uqm,sfc_qctype_use,inum_sfc_qctype) .and.
+     &    use_this_data_int(pqm,sfc_qctype_use,inum_sfc_qctype) .and.
+     &    uob .lt. 1.e9                                 ) then
+c          if (use_this_data_int(uqm,qctype_use,inum_qctype) .and.
+c     &        use_this_data_int(pqm,qctype_use,inum_qctype) .and. 
+c     &        uob .lt. 1.e9                                 ) then
 
             udata(1) = uoe
             if ( uoe .ge. 1.e9 ) udata(1) = land_wind_error
+            if ( subset(1:6) .eq. 'SFCSHP' ) then
+                udata(1) = 1.6 ! MARINE ; Mar 28 2025 -> 1.6
+            else if (subset(1:6) .eq. 'ADPSFC' ) then
+                udata(1) = 1.5 ! LAND/METAR; Mar 28 2025 -> 1.5
+            end if
             udata(4) = zob
             udata(5) = uob
             udata(6) = vob
 
             vdata(1) = voe
             if ( voe .ge. 1.e9 ) vdata(1) = land_wind_error
+            if ( subset(1:6) .eq. 'SFCSHP' ) then
+                vdata(1) = 1.6 ! MARINE ; Mar 28 2025 -> 1.6
+            else if (subset(1:6) .eq. 'ADPSFC' ) then
+                vdata(1) = 1.5 ! LAND/METAR; Mar 28 2025 -> 1.5
+            end if
             vdata(4) = zob
             vdata(5) = vob
             vdata(6) = uob

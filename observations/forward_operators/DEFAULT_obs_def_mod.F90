@@ -823,6 +823,9 @@ else
    write(ifile)    obs_def%kind
 endif
 
+!write(*,*) 'Writing obs_def for type ', obs_def%kind, ', ', &
+!             trim(get_name_for_type_of_obs(obs_def%kind))
+
 ! This kind may have its own module that needs to write more
 select case(obs_def%kind)
    ! More complicated kinds may require writing additional information from 

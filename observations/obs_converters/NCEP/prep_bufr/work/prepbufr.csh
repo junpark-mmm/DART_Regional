@@ -80,15 +80,15 @@ endif
 # 'oyear', 'omn', 'ody', 'ohr' are the original date, if the day, month, 
 # and/or year have rolled over.
 
-#set BUFR_dir = ../data
-set BUFR_dir  = /glade/p/image/Observations/bufr
+set BUFR_dir = ../data
+#set BUFR_dir  = /glade/p/image/Observations/bufr
 
 set BUFR_idir = ${BUFR_dir}/prepqm
 set BUFR_odir = ${BUFR_dir}/prepout
 
 
 # directory where DART prepbufr programs are located, relative to here.
-set DART_exec_dir = .
+set DART_exec_dir = ../exe
 
 # END USER SET PARAMETERS
 #--------------------------------------------------------------
@@ -130,7 +130,7 @@ while ( $hr_file <= $files_per_day )
    # fix the BUFR_in line below to match what you have.  if the file is
    # gzipped, you can leave it and this program will unzip it before
    # processing it.
-   set BUFR_in = ${BUFR_idir}/prepqm${sdtg}.no_ship_id
+   set BUFR_in = ${BUFR_idir}/prepbufr.gdas.${year}${mn}${dy}.t${hr}z.nr.48h
 
    if ( -e ${BUFR_in} ) then
       echo "copying ${BUFR_in} into prepqm.in"
