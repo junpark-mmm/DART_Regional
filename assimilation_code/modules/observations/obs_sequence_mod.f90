@@ -788,7 +788,10 @@ else
    obs_time = get_obs_def_time(obs%def)
    last_time = get_obs_def_time(last_obs%def)
    if(obs_time < last_time) then
-      write(string1, *) 'time of appended obs cannot be < time of last obs in sequence'
+
+      call print_time(obs_time)
+      call print_time(last_time)
+      write(string1, *) 'the time of appended obs cannot be < time of last obs in sequence'
       call error_handler(E_ERR,'append_obs_to_seq',string1, source)
    endif
 
@@ -875,11 +878,6 @@ else
    seq%obs(prev)%next_time = -1
    seq%last_time = prev
 endif
-
-
-!print *, 'prev key, next = ', prev, seq%obs(prev)%next_time
-!print *, 'next key, prev = ', next, seq%obs(next)%prev_time
-!print *, 'seq entire first/last = ', seq%first_time, seq%last_time
 
 end subroutine delete_obs_from_seq
 

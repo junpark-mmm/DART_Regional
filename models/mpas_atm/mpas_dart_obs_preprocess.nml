@@ -43,5 +43,7 @@
   overwrite_ncep_satwnd_qc = .false.
   overwrite_ncep_sfc_qc    = .false.
 
+  thin_hydrosat            = .false.
+
   max_num_obs              = 1000000
 /

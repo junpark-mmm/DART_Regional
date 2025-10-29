@@ -71,6 +71,14 @@ use obs_kind_mod, only : RADIOSONDE_SURFACE_ALTIMETER
 use obs_kind_mod, only : SAT_U_WIND_COMPONENT
 use obs_kind_mod, only : SAT_V_WIND_COMPONENT
 use obs_kind_mod, only : ATOV_TEMPERATURE
+use obs_kind_mod, only : METAR_U_10_METER_WIND
+use obs_kind_mod, only : METAR_V_10_METER_WIND
+use obs_kind_mod, only : METAR_TEMPERATURE_2_METER
+use obs_kind_mod, only : METAR_SPECIFIC_HUMIDITY_2_METER
+use obs_kind_mod, only : METAR_RELATIVE_HUMIDITY_2_METER
+use obs_kind_mod, only : METAR_DEWPOINT_2_METER
+use obs_kind_mod, only : METAR_SURFACE_PRESSURE
+use obs_kind_mod, only : METAR_ALTIMETER
 
 
 implicit none
@@ -331,6 +339,7 @@ obsloop:  do
      if(obstype == 161 .or. obstype == 163) obs_kind = ATOV_TEMPERATURE
      if(obstype == 171 .or. obstype == 173) obs_kind = ATOV_TEMPERATURE
      if(obstype == 180 .or. obstype == 182) obs_kind = MARINE_SFC_TEMPERATURE
+     if(obstype == 187                    ) obs_kind = METAR_TEMPERATURE_2_METER
      if(obstype == 181 .or. obstype == 183) obs_kind = LAND_SFC_TEMPERATURE
    endif
 
@@ -342,6 +351,7 @@ obsloop:  do
        if(obstype == 133                    ) obs_kind = ACARS_SPECIFIC_HUMIDITY
        if(obstype == 180 .or. obstype == 182) obs_kind = MARINE_SFC_SPECIFIC_HUMIDITY
        if(obstype == 181 .or. obstype == 183) obs_kind = LAND_SFC_SPECIFIC_HUMIDITY
+       if(obstype == 187                    ) obs_kind = METAR_SPECIFIC_HUMIDITY_2_METER
      else if ( zob2 == 1.0_r8 .and. inc_relative_humidity ) then
        obs_kind_gen = QTY_RELATIVE_HUMIDITY
        if(obstype == 120 .or. obstype == 132) obs_kind = RADIOSONDE_RELATIVE_HUMIDITY
@@ -349,6 +359,7 @@ obsloop:  do
        if(obstype == 133                    ) obs_kind = ACARS_RELATIVE_HUMIDITY
        if(obstype == 180 .or. obstype == 182) obs_kind = MARINE_SFC_RELATIVE_HUMIDITY
        if(obstype == 181 .or. obstype == 183) obs_kind = LAND_SFC_RELATIVE_HUMIDITY
+       if(obstype == 187                    ) obs_kind = METAR_RELATIVE_HUMIDITY_2_METER
      else if ( zob2 == 2.0_r8 .and. inc_dewpoint ) then
        obs_kind_gen = QTY_DEWPOINT
        if(obstype == 120 .or. obstype == 132) obs_kind = RADIOSONDE_DEWPOINT
@@ -356,6 +367,7 @@ obsloop:  do
        if(obstype == 133                    ) obs_kind = ACARS_DEWPOINT
        if(obstype == 180 .or. obstype == 182) obs_kind = MARINE_SFC_DEWPOINT
        if(obstype == 181 .or. obstype == 183) obs_kind = LAND_SFC_DEWPOINT
+       if(obstype == 187                    ) obs_kind = METAR_DEWPOINT_2_METER
      endif
    endif
 
@@ -365,10 +377,12 @@ obsloop:  do
        if(obstype == 120                    ) obs_kind = RADIOSONDE_SURFACE_PRESSURE 
        if(obstype == 180 .or. obstype == 182) obs_kind = MARINE_SFC_PRESSURE 
        if(obstype == 181                    ) obs_kind = LAND_SFC_PRESSURE 
+       if(obstype == 187                    ) obs_kind = METAR_SURFACE_PRESSURE
      else
        if(obstype == 120                    ) obs_kind = RADIOSONDE_SURFACE_ALTIMETER
        if(obstype == 180 .or. obstype == 182) obs_kind = MARINE_SFC_ALTIMETER
        if(obstype == 181                    ) obs_kind = LAND_SFC_ALTIMETER
+       if(obstype == 187                    ) obs_kind = METAR_ALTIMETER
      endif
    endif
 
@@ -384,6 +398,7 @@ obsloop:  do
      if(obstype == 255                    ) obs_kind = SAT_U_WIND_COMPONENT
      if(obstype == 280 .or. obstype == 282) obs_kind = MARINE_SFC_U_WIND_COMPONENT
      if(obstype == 281 .or. obstype == 284) obs_kind = LAND_SFC_U_WIND_COMPONENT
+     if(obstype == 287                    ) obs_kind = METAR_U_10_METER_WIND
    endif
 
    if(obs_prof == 9) then
@@ -398,6 +413,7 @@ obsloop:  do
      if(obstype == 255                    ) obs_kind = SAT_V_WIND_COMPONENT
      if(obstype == 280 .or. obstype == 282) obs_kind = MARINE_SFC_V_WIND_COMPONENT
      if(obstype == 281 .or. obstype == 284) obs_kind = LAND_SFC_V_WIND_COMPONENT
+     if(obstype == 287                    ) obs_kind = METAR_V_10_METER_WIND
    endif
 
    if(obs_prof == 7) then
@@ -517,7 +533,7 @@ obsloop:  do
 
    ! set obs value and error if necessary
    if ( obs_kind == LAND_SFC_ALTIMETER .or. obs_kind == MARINE_SFC_ALTIMETER &
-        .or. obs_kind == RADIOSONDE_SURFACE_ALTIMETER ) then
+        .or. obs_kind == RADIOSONDE_SURFACE_ALTIMETER .or. obs_kind == METAR_ALTIMETER ) then
       vloc = lev                  ! station height, not used now for Ps obs
       which_vert = VERTISSURFACE
       obs_value  = compute_altimeter(zob, vloc)  !  altimeter is hPa

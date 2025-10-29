@@ -31,15 +31,15 @@ set -ea
 #  ------------------------------------------------------------------------
  
 if [ "$CCOMP" == "" ]; then
- CCOMP=gnu
- #CCOMP=intel
+ #CCOMP=gnu
+ CCOMP=intel
  #CCOMP=pgi
  #CCOMP=default
 fi
 
 if [ "$FCOMP" == "" ]; then
- FCOMP=gnu
- #FCOMP=intel
+ #FCOMP=gnu
+ FCOMP=intel
  #FCOMP=pgi
  #FCOMP=f77
  #FCOMP=nag   # NOT SUPPORTED
@@ -60,7 +60,7 @@ fi
 if   [ $CCOMP = gnu ] ; then
    cc=gcc ;
 elif [ $CCOMP = intel ] ; then
-   cc=icc ;
+   cc=gcc ;
 elif [ $CCOMP = pgi ] ;  then
    cc=pgcc ;
 else
