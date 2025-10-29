@@ -8,7 +8,6 @@
 #PBS -j oe
 #PBS -o ./convention_pmo.log
 
-
 source /glade/u/home/swei/Git/utils/mpas/modulefiles/setup_derecho_intel.sh
 
 set DATE_BEG = 2024-05-01_00:00:00      # start date to run this script
@@ -16,7 +15,7 @@ set DATE_END = 2024-05-01_05:00:00      # end date to run this script
 set INTV_DAY = 0                        # cycling frequency - assimilation_period_days    in input.nml
 set INTV_SEC = 3600                    # cycling frequency - assimilation_period_seconds in input.nml
 
-set NR_DIR = /glade/campaign/mmm/parc/olewis/QU3km_files
+set NR_DIR = /glade/campaign/mmm/parc/swei/naturalrun_3km
 set SEQIN_DIR = /glade/campaign/mmm/parc/olewis/obs/obs_seq_in_within_domain
 set SEQIN_TEMPLATE = obs_seq.in.conv.%odate%_after
 
