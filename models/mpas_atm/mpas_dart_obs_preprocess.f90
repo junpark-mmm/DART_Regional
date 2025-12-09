@@ -51,10 +51,10 @@ use obs_sequence_mod, only : append_obs_to_seq, copy_obs, delete_obs_from_seq, &
                              read_obs_seq, read_obs_seq_header, set_copy_meta_data, &
                              set_obs_def, set_obs_values, set_qc, set_qc_meta_data, &
                              static_init_obs_sequence, write_obs_seq, init_obs_sequence
-use      obs_def_mod, only : get_obs_def_error_variance, get_obs_def_location, &
+use      obs_def_mod, only : get_obs_def_error_variance, get_obs_def_location, get_obs_def_key, &
                              get_obs_def_time, get_obs_def_type_of_obs, obs_def_type, &
                              set_obs_def_error_variance, set_obs_def_type_of_obs, &
-                             set_obs_def_location, set_obs_def_time
+                             set_obs_def_location, set_obs_def_time, set_obs_def_key
 use     obs_kind_mod, only : ACARS_DEWPOINT, ACARS_RELATIVE_HUMIDITY, ACARS_SPECIFIC_HUMIDITY, &
                              ACARS_TEMPERATURE, ACARS_U_WIND_COMPONENT, ACARS_V_WIND_COMPONENT, &
                              AIRCRAFT_SPECIFIC_HUMIDITY, AIRCRAFT_TEMPERATURE, AIRCRAFT_U_WIND_COMPONENT, &
@@ -72,6 +72,8 @@ use     obs_kind_mod, only : ACARS_DEWPOINT, ACARS_RELATIVE_HUMIDITY, ACARS_SPEC
                              RADIOSONDE_V_WIND_COMPONENT, SAT_U_WIND_COMPONENT, SAT_V_WIND_COMPONENT, &
                              DOPPLER_RADIAL_VELOCITY, RADAR_REFLECTIVITY, RADAR_CLEARAIR_REFLECTIVITY, &
                              GOES_LWP_PATH, GOES_IWP_PATH, GOES_CWP_ZERO, HYDROSAT_TB
+use obs_def_rttov_mod, only: visir_metadata_type, get_visir_metadata, set_visir_metadata
+
 use        model_mod, only : static_init_model, get_grid_dims, get_xland, &
                              model_interpolate, find_closest_cell_center, &
                              cell_ok_to_interpolate, is_global_grid,      &
@@ -133,6 +135,9 @@ logical            :: superob_sat_winds        = .false.    ! super-ob sat wind 
 real(r8)           :: sat_wind_pres_int        = 2500.0_r8  ! pressure interval for super-ob
 logical            :: overwrite_ncep_satwnd_qc = .false.    ! true to overwrite NCEP QC (see instructions)
 
+! hydrosat brightness temperature (Tb) specific parameters
+logical            :: superob_hydrosat_Tb      = .false.    ! super-ob hydrosat Tb data
+
 !  surface obs. specific parameters
 logical            :: overwrite_ncep_sfc_qc    = .false.  ! true to overwrite NCEP QC (see instructions)
 
@@ -154,7 +159,7 @@ integer            :: print_every_nth_obs      = -1       ! if positive, print a
 namelist /mpas_dart_obs_preprocess_nml/ file_name_input, file_name_output, max_num_obs,     &
          include_sig_data, superob_aircraft, superob_sat_winds, superob_qc_threshold,   &
          sfc_elevation_check, overwrite_ncep_sfc_qc, overwrite_ncep_satwnd_qc, &
-         aircraft_pres_int, sat_wind_pres_int, sfc_elevation_tol,   & 
+         aircraft_pres_int, sat_wind_pres_int, sfc_elevation_tol, superob_hydrosat_Tb,  & 
          obs_pressure_top, obs_height_top, gpsro_lowest_meter, sonde_extra, metar_extra, &
          acars_extra, land_sfc_extra, marine_sfc_extra, sat_wind_extra, profiler_extra, &
          trop_cyclone_extra, gpsro_extra, gpspw_extra, hydrosat_extra, tc_sonde_radii, &
@@ -180,6 +185,14 @@ type(obs_sequence_type) :: seq_all, seq_rawin, seq_sfc, seq_acars, seq_satwnd, &
 type(time_type)         :: anal_time
 
 type(ensemble_type)     :: dummy_ens
+
+! hydrosat Tb obs type
+type hydrosat_Tb_type
+  real(r8)            :: nTb, lat, lon, Tb, Tb_err, Tb_qc, Tb_truth
+  type(location_type) :: obs_loc
+  type(time_type)     :: time
+  type(visir_metadata_type) :: obs_md
+end type hydrosat_Tb_type
 
 integer :: nCells        = -1  ! Total number of cells making up the grid
 integer :: nVertices     = -1  ! Unique points in grid that are corners of cells
@@ -356,6 +369,7 @@ endif
 if ( superob_sat_winds ) call superob_sat_wind_data(seq_satwnd, nCells, anal_time, &
                               sat_wind_pres_int, superob_qc_threshold, obs_pressure_top)
 
+if ( superob_hydrosat_Tb ) call superob_hydrosat_Tb_data(seq_hydrosat, nCells, anal_time, superob_qc_threshold)
 if ( thin_hydrosat ) call thin_hydrosat_data(seq_hydrosat, nCells, thresh_dist, anal_time)
 
 print*, 'Number of obs processed:'
@@ -938,6 +952,54 @@ qc_val(1)  = qc
 call set_qc(obs, qc_val)
 
 end subroutine create_obs_type
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!   create_rttov_obs_type - subroutine that is used to create an observation 
+!                     type from observation data.
+!
+!    rttov_obs - hydrosat_Tb_type
+!    okind - observation kind
+!    obs   - observation type that includes the observation information
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+subroutine create_rttov_obs_type(rttov_obs, okind, otime, obs)
+
+type(hydrosat_Tb_type), intent(in) :: rttov_obs
+integer, intent(in)           :: okind
+type(time_type), intent(in)   :: otime
+type(obs_type), intent(inout) :: obs
+
+real(r8)              :: obs_val(1), qc_val(1), truth_val(1)
+type(obs_def_type)    :: obs_def
+integer               :: key
+
+call set_obs_def_location(obs_def, set_location(rttov_obs%lon, rttov_obs%lat, 0.0_r8, VERTISUNDEF))
+call set_obs_def_type_of_obs(obs_def, okind)
+call set_obs_def_time(obs_def, otime)
+call set_obs_def_error_variance(obs_def, rttov_obs%Tb_err)
+call set_visir_metadata(key, &
+   rttov_obs%obs_md%sat_az, &
+   rttov_obs%obs_md%sat_ze, &
+   rttov_obs%obs_md%sun_az, &
+   rttov_obs%obs_md%sun_ze, &
+   rttov_obs%obs_md%platform_id, &
+   rttov_obs%obs_md%sat_id, &
+   rttov_obs%obs_md%sensor_id, &
+   rttov_obs%obs_md%channel, &
+   rttov_obs%obs_md%specularity &
+)
+call set_obs_def_key(obs_def, key)
+call set_obs_def(obs, obs_def)
+
+obs_val(1) = rttov_obs%Tb
+call set_obs_values(obs, obs_val, 1)
+truth_val(1) = rttov_obs%Tb_truth
+call set_obs_values(obs, truth_val, 2)
+qc_val(1)  = rttov_obs%Tb_qc
+call set_qc(obs, qc_val)
+
+end subroutine create_rttov_obs_type
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
@@ -2244,6 +2306,241 @@ deallocate(lat); deallocate(lon)
 deallocate(qcu); deallocate(qcv)
 
 end subroutine superob_sat_wind_data
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!   superob_hydrosat_Tb_data - subroutine that creates superobs of 
+!                              satellite wind data based on the given
+!                              horizontal intervals.
+!
+!    seq   - satellite wind observation sequence
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+subroutine superob_hydrosat_Tb_data(seq, ncell, atime, iqc_thres)
+
+type(obs_sequence_type), intent(inout) :: seq
+type(time_type),         intent(in)    :: atime
+integer,  intent(in)                   :: ncell, iqc_thres
+!real(r8), intent(in)                   :: vdist, ptop
+
+character(len=512)  :: string
+integer             :: icell
+integer             :: num_copies, num_qc, nloc, k, locdex, obs_kind, n, &
+                       num_obs, poleward_obs
+logical             :: last_obs
+real(r8)            :: llv_loc(3), obs_val(1), truth_val(1), qc_val(1)
+
+!real(r8),allocatable :: nTb(:), lat(:), lon(:), pres(:), &
+!                        Tb(:), Tberr(:), Tbqc(:), &
+!                        Tb_truth(:)
+!
+integer             :: obskey
+type(location_type) :: obs_loc
+type(obs_def_type)  :: obs_def
+type(obs_type)      :: obs, prev_obs
+integer             :: ich, n_channels
+
+real(r8)  :: sat_az, sat_ze, sun_az, sun_ze
+integer   :: platform_id, sat_id, sensor_id, channel
+real(r8)  :: specularity
+
+!type hydrosat_Tb_type
+!  real(r8)            :: nTb, lat, lon, Tb, Tb_err, Tb_qc, Tb_truth
+!  type(location_type) :: obs_loc
+!  type(time_type)     :: time
+!  type(visir_metadata_type) :: obs_md
+!end type hydrosat_Tb_type
+
+type(hydrosat_Tb_type), allocatable :: Tbobs(:), out_Tbobs(:, :)
+
+character(len=*), parameter :: routine = "superob_hydrosat_Tb_data"
+
+!-----------------------------------------------------------------------
+
+write(6,*)
+write(6,*) 'Super-Obing Hydrosat TB over ',ncell,' cells.'
+
+num_copies = get_num_copies(seq)
+num_qc     = get_num_qc(seq)
+num_obs    = get_num_obs(seq)
+
+write(6,*) 'Super-Obing',num_obs,' Hydrosat TB data'
+write(6,*)
+
+allocate(Tbobs(num_obs))
+call init_obs(obs,      num_copies, num_qc)
+call init_obs(prev_obs, num_copies, num_qc)
+
+last_obs = .false.  ;  nloc = 0  ;  poleward_obs = 0
+if ( .not. get_first_obs(seq, obs) )  last_obs = .true.
+
+!  loop over satellite winds, create list
+do while ( .not. last_obs )
+
+  call get_obs_values(obs, obs_val, 1)
+  call get_obs_values(obs, truth_val, 2)
+  call get_qc(obs, qc_val, 1)
+
+  call get_obs_def(obs, obs_def)
+  obs_loc  = get_obs_def_location(obs_def)
+  obs_kind = get_obs_def_type_of_obs(obs_def)
+  llv_loc  = get_location(obs_loc)
+
+  obskey = get_obs_key(obs)
+  call get_visir_metadata(obskey, sat_az, sat_ze, sun_az, sun_ze, &
+                          platform_id, sat_id, sensor_id, channel, specularity)
+   
+  !  determine if observation exists
+  locdex = -1
+  do k = nloc, 1, -1
+
+    if ( obs_loc == Tbobs(k)%obs_loc .and. channel == Tbobs(locdex)%obs_md%channel ) then
+      locdex = k
+      exit
+    end if
+
+  end do
+
+  if ( locdex < 1 ) then  !  create new observation type
+
+    ! test if we are within the cell of either pole, and punt for now on those 
+    ! obs because we can't accurately average points that wrap the poles.
+    ! (hdist is radius, in KM, of region of interest.)
+    if (pole_check(llv_loc(1), llv_loc(2))) then
+        ! count up obs here and print later
+        poleward_obs = poleward_obs + 1
+        goto 200
+    endif
+     
+    nloc = nloc + 1
+    locdex = nloc
+
+    Tbobs(locdex)%lon      = llv_loc(1)
+    Tbobs(locdex)%lat      = llv_loc(2)
+    Tbobs(locdex)%obs_loc  = obs_loc
+    Tbobs(locdex)%Tb       = missing_r8
+    Tbobs(locdex)%Tb_truth = missing_r8
+    Tbobs(locdex)%time     = get_obs_def_time(obs_def)
+
+    Tbobs(locdex)%obs_md%sat_az      = sat_az
+    Tbobs(locdex)%obs_md%sat_ze      = sat_ze
+    Tbobs(locdex)%obs_md%sun_az      = sun_az
+    Tbobs(locdex)%obs_md%sun_ze      = sun_ze
+    Tbobs(locdex)%obs_md%platform_id = platform_id
+    Tbobs(locdex)%obs_md%sat_id      = sat_id
+    Tbobs(locdex)%obs_md%sensor_id   = sensor_id
+    Tbobs(locdex)%obs_md%channel     = channel
+    Tbobs(locdex)%obs_md%specularity = specularity
+
+  end if
+
+  !  add observation information
+  if(qc_val(1).lt.iqc_thres) then
+    Tbobs(locdex)%Tb     = obs_val(1)
+    Tbobs(locdex)%Tb_truth = truth_val(1)
+    Tbobs(locdex)%Tb_qc  = qc_val(1)
+    Tbobs(locdex)%Tb_err = get_obs_def_error_variance(obs_def)
+  end if
+
+
+200 continue   ! come here to skip this obs
+
+  prev_obs = obs
+  call get_next_obs(seq, prev_obs, obs, last_obs)
+
+end do
+
+n_channels = maxval(Tbobs(:)%obs_md%channel)
+
+if (poleward_obs > 0) then
+   write(6, *) 'WARNING: skipped ', poleward_obs, ' of ', poleward_obs+nloc, ' Tb obs because'
+   write(6, *) 'they were within the cell of the poles (the superobs distance).'
+endif
+
+!  create new sequence
+call destroy_obs_sequence(seq)
+call create_new_obs_seq(num_copies, num_qc, num_obs, seq)
+call init_obs(obs, num_copies, num_qc)
+
+! Allocation and initialization
+allocate(out_Tbobs(ncell, n_channels))
+
+out_Tbobs(:, :)%nTb=0.0_r8
+out_Tbobs(:, :)%lat=0.0_r8
+out_Tbobs(:, :)%lon=0.0_r8
+out_Tbobs(:, :)%Tb=0.0_r8
+out_Tbobs(:, :)%Tb_err=0.0_r8
+out_Tbobs(:, :)%Tb_qc=0.0_r8
+out_Tbobs(:, :)%Tb_truth=0.0_r8
+out_Tbobs(:, :)%obs_md%sat_az = 0.0_r8
+out_Tbobs(:, :)%obs_md%sat_ze = 0.0_r8
+
+icell=0;
+
+! Assign obs into each bin [ncell] for superobing
+do k = 1, nloc  ! loop over all locations
+
+   if ( Tbobs(k)%Tb /= missing_r8 ) then
+
+       icell = find_closest_cell_center(Tbobs(k)%lat, Tbobs(k)%lon)
+       if(icell < 1) then
+          write(string,*) 'Cannot find any cell for this obs at ',&
+                           Tbobs(k)%lat,Tbobs(k)%lon  
+          call error_handler(E_MSG, routine, source, revision, revdate, text2=string) 
+       endif
+
+       ich = Tbobs(k)%obs_md%channel
+
+       out_Tbobs(icell, ich)%nTb =         out_Tbobs(icell, ich)%nTb + 1.0_r8
+       out_Tbobs(icell, ich)%lat =         out_Tbobs(icell, ich)%lat + Tbobs(k)%lat 
+       out_Tbobs(icell, ich)%lon =         out_Tbobs(icell, ich)%lon + Tbobs(k)%lon 
+       out_Tbobs(icell, ich)%Tb =          out_Tbobs(icell, ich)%Tb + Tbobs(k)%Tb
+       out_Tbobs(icell, ich)%Tb_truth =    out_Tbobs(icell, ich)%Tb_truth + Tbobs(k)%Tb_truth
+       out_Tbobs(icell, ich)%Tb_err =       out_Tbobs(icell, ich)%Tb_err + Tbobs(k)%Tb_err
+       out_Tbobs(icell, ich)%Tb_qc =    max(out_Tbobs(icell, ich)%Tb_qc, Tbobs(k)%Tb_qc)
+       out_Tbobs(icell, ich)%obs_md%sat_az = out_Tbobs(icell, ich)%obs_md%sat_az + Tbobs(k)%obs_md%sat_az
+       out_Tbobs(icell, ich)%obs_md%sat_ze = out_Tbobs(icell, ich)%obs_md%sat_ze + Tbobs(k)%obs_md%sat_ze
+       out_Tbobs(icell, ich)%obs_md%sun_az = missing_r8
+       out_Tbobs(icell, ich)%obs_md%sun_ze = missing_r8
+       out_Tbobs(icell, ich)%obs_md%platform_id = Tbobs(k)%obs_md%platform_id
+       out_Tbobs(icell, ich)%obs_md%sat_id = Tbobs(k)%obs_md%sat_id
+       out_Tbobs(icell, ich)%obs_md%sensor_id = Tbobs(k)%obs_md%sensor_id
+       out_Tbobs(icell, ich)%obs_md%channel = Tbobs(k)%obs_md%channel
+       out_Tbobs(icell, ich)%obs_md%specularity = Tbobs(k)%obs_md%specularity
+
+   end if
+
+end do    !  do k = 1, nloc  ! loop over all locations
+
+! Superob in each bin [ncell]
+do n = 1, ncell ! loop over all grid cells
+   do ich = 1, n_channels
+
+      if( out_Tbobs(n, ich)%nTb > 0.0_r8 ) then      ! superob
+
+        ! create superobs
+          out_Tbobs(n, ich)%lat  = out_Tbobs(n, ich)%lat  / out_Tbobs(n, ich)%nTb
+          out_Tbobs(n, ich)%lon  = out_Tbobs(n, ich)%lon  / out_Tbobs(n, ich)%nTb
+          if ( out_Tbobs(n, ich)%lon >= 360.0_r8 )  out_Tbobs(n, ich)%lon = out_Tbobs(n, ich)%lon - 360.0_r8
+          out_Tbobs(n, ich)%Tb = out_Tbobs(n, ich)%Tb / out_Tbobs(n, ich)%nTb
+          out_Tbobs(n, ich)%Tb_truth = out_Tbobs(n, ich)%Tb_truth / out_Tbobs(n, ich)%nTb
+          out_Tbobs(n, ich)%Tb_err = out_Tbobs(n, ich)%Tb_err / out_Tbobs(n, ich)%nTb
+          out_Tbobs(n, ich)%obs_md%sat_az = out_Tbobs(n, ich)%obs_md%sat_az / out_Tbobs(n, ich)%nTb
+          out_Tbobs(n, ich)%obs_md%sat_ze = out_Tbobs(n, ich)%obs_md%sat_ze / out_Tbobs(n, ich)%nTb
+
+        ! add to observation sequence
+          call create_rttov_obs_type(out_Tbobs(n, ich), HYDROSAT_TB, atime, obs)
+          !call create_obs_type(lat(n), lon(n), pres(n), VERTISUNDEF, Tb(n), Tb_truth(n), &
+          !                     HYDROSAT_TB, Tberr(n), Tbqc(n), atime, obs)
+          call append_obs_to_seq(seq, obs)
+
+      endif     !( nTb(n) > 0.0_r8 ) then      ! superob
+   end do  ! do ich = 1, n_channels
+end do       ! do n = 1, ncel
+
+deallocate(Tbobs, out_Tbobs)
+
+end subroutine superob_hydrosat_Tb_data
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
