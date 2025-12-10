@@ -52,6 +52,7 @@ use         utilities_mod, only : register_module, error_handler, E_ERR, E_MSG, 
                                   ascii_file_format
 use          location_mod, only : location_type, read_location, write_location, &
                                   interactive_location, set_location_missing, &
+                                  get_location, &
                                   operator(/=) 
 use      time_manager_mod, only : time_type, read_time, write_time, operator(/=), &
                                   set_time_missing, interactive_time, &
@@ -509,14 +510,14 @@ type(ensemble_type), intent(in)  :: state_handle
 integer,             intent(in)  :: ens_size
 integer,             intent(in)  :: copy_indices(ens_size)
 integer,             intent(in)  :: key
-type(obs_def_type),  intent(in)  :: obs_def
+type(obs_def_type),  intent(inout)  :: obs_def
 integer,             intent(in)  :: obs_kind_ind
 type(time_type),     intent(in)  :: state_time
 logical,             intent(in)  :: isprior
 integer,             intent(out) :: istatus(ens_size)
 logical,             intent(out) :: assimilate_this_ob, evaluate_this_ob
 real(r8),            intent(out) :: expected_obs(ens_size)
-
+real(r8) :: obslocout(3)
 
 type(location_type) :: location
 type(time_type)     :: obs_time
@@ -616,6 +617,11 @@ else
    expected_obs(:) = missing_r8
    istatus = 0
 endif
+
+!obslocout = get_location(location)
+!print*, 'LOCATION AT END OF FO CODE: ', obslocout
+
+obs_def%location = location
 
 end subroutine get_expected_obs_from_def_distrib_state
 

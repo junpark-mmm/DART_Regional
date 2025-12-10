@@ -158,9 +158,13 @@
 ! GOES_15_IMAGER_RADIANCE,      QTY_RADIANCE
 ! GOES_15_SOUNDER_RADIANCE,     QTY_RADIANCE
 ! GOES_16_ABI_RADIANCE,         QTY_RADIANCE
+! GOES_16_ABI_TB,               QTY_BRIGHTNESS_TEMPERATURE
 ! GOES_17_ABI_RADIANCE,         QTY_RADIANCE
+! GOES_17_ABI_TB,               QTY_BRIGHTNESS_TEMPERATURE
 ! GOES_18_ABI_RADIANCE,         QTY_RADIANCE
+! GOES_18_ABI_TB,               QTY_BRIGHTNESS_TEMPERATURE
 ! GOES_19_ABI_RADIANCE,         QTY_RADIANCE
+! GOES_19_ABI_TB,               QTY_BRIGHTNESS_TEMPERATURE
 ! GMS_1_IMAGER_RADIANCE,        QTY_RADIANCE
 ! GMS_2_IMAGER_RADIANCE,        QTY_RADIANCE
 ! GMS_3_IMAGER_RADIANCE,        QTY_RADIANCE
@@ -315,9 +319,9 @@ use    utilities_mod, only : register_module, error_handler, E_ERR, E_WARN, E_MS
                              do_nml_term, check_namelist_read, find_namelist_in_file, &
                              interactive_r, interactive_i, open_file, file_exist, &
                              close_file
-
+use       sort_mod,   only : index_sort
 use     location_mod, only : location_type, set_location, get_location, &
-                             VERTISUNDEF, VERTISHEIGHT, VERTISLEVEL, VERTISSURFACE
+                             VERTISPRESSURE, VERTISUNDEF, VERTISHEIGHT, VERTISLEVEL, VERTISSURFACE
 
 use  assim_model_mod, only : interpolate
 
@@ -1899,12 +1903,12 @@ subroutine do_forward_model(ens_size, nlevels, flavor, location, &
    atmos, trace_gas, clouds, aerosols, sensor, channel,          &
    first_lvl_is_sfc, mw_clear_sky_only, clw_scheme, ice_scheme,  &
    idg_scheme, aerosl_type, do_lambertian, use_totalice,         &
-   use_zeeman, radiances, error_status, visir_md, mw_md)
+   use_zeeman, radiances, error_status, visir_md, mw_md, peakw)
 
 integer,                                intent(in)  :: ens_size
 integer,                                intent(in)  :: nlevels
 integer,                                intent(in)  :: flavor
-type(location_type),                    intent(in)  :: location
+type(location_type),                    intent(inout)  :: location
 type(atmos_profile_type),               intent(in)  :: atmos
 type(trace_gas_profile_type),           intent(in)  :: trace_gas
 type(cloud_profile_type),               intent(in)  :: clouds
@@ -1924,6 +1928,8 @@ real(r8),                               intent(out) :: radiances(ens_size)
 integer,                                intent(out) :: error_status(ens_size)
 type(visir_metadata_type),     pointer, intent(in)  :: visir_md
 type(mw_metadata_type),        pointer, intent(in)  :: mw_md
+real(r8),                               intent(out) :: peakw
+
 
 character(len=obstypelength) :: obs_qty_string
 integer                      :: obs_type_num
@@ -1952,6 +1958,13 @@ logical :: is_mw
 logical :: is_cumulus
 integer :: instrument(3)
 integer :: surftype
+
+! TAJ WEIGHTING FUNCTION STUFF
+integer :: peakloc
+real(r8) :: temptran(nlevels)
+real(r8) :: weighting_fn(nlevels-1)
+integer :: sweighting_fn(nlevels-1)
+real(r8) :: peak_weight(ens_size)
 
 if (.not. associated(sensor)) then
    write(string1,*)'Passed an unassociated sensor'
@@ -2530,6 +2543,16 @@ if (obs_type_num == QTY_RADIANCE) then
 elseif (obs_type_num == QTY_BRIGHTNESS_TEMPERATURE) then
    do imem = 1, ens_size
       radiances(imem) = runtime % radiance % bt(imem)
+
+      ! Find peak weighting function pressure level (Thomas Jones, Feb 24, 2024)
+      temptran(:) = runtime % transmission % tau_levels(:,imem)
+
+      weighting_fn = ( temptran(2:nlevels) - temptran(1:nlevels-1) ) / ( LOG(runtime % profiles(imem) % p(1:nlevels-1)) - LOG(runtime % profiles(imem) % p(2:nlevels)) )
+      call index_sort(weighting_fn, sweighting_fn, nlevels-1)
+
+      peakloc=sweighting_fn(nlevels-1)
+      peak_weight(imem) = runtime % profiles(imem) % p(peakloc)
+      !print*, imem, peakloc, runtime % radiance % bt(imem), peak_weight(imem) 
    end do
    if (debug) then
       print*, 'RADIANCE % BT for ',trim(obs_qty_string),'= ', radiances(:)
@@ -2545,6 +2568,11 @@ else
    call error_handler(E_ERR, 'unknown observation quantity for ' // trim(obs_qty_string), &
       source, revision, revdate)
 end if
+
+!! RESET VETRICAL COORDINATE TO PEAK WEIGHTING LEVEL
+peakw = SUM(peak_weight(:))/ens_size
+!print*, 'ENS_MEAN WF: ', peakw
+!location = set_location(lon, lat, peakw*100.0, VERTISPRESSURE )
 
 IF (errorstatus /= errorstatus_success) THEN
   WRITE (*,*) 'rttov_direct error'
@@ -3432,7 +3460,7 @@ subroutine get_expected_radiance(obs_kind_ind, state_handle, ens_size, location,
 integer,             intent(in)  :: obs_kind_ind
 type(ensemble_type), intent(in)  :: state_handle
 integer,             intent(in)  :: ens_size
-type(location_type), intent(in)  :: location          ! location of obs
+type(location_type), intent(inout)  :: location          ! location of obs
 integer,             intent(in)  :: key               ! key into module metadata
 integer,             intent(in)  :: flavor            ! flavor of obs
 real(r8),            intent(out) :: val(ens_size)     ! value of obs
@@ -3444,9 +3472,10 @@ integer  :: instrument(3)
 integer :: this_istatus(ens_size)
 
 integer  :: i
-real(r8) :: loc_array(3)
+real(r8) :: loc_array(3), obsloc_out(3)
 real(r8) :: loc_lon, loc_lat
 real(r8) :: loc_value(ens_size)
+real(r8) :: peakw
 type(location_type) :: loc
 integer :: maxlevels, numlevels
 
@@ -3736,8 +3765,8 @@ GETLEVELDATA : do i = 1,numlevels
    if (clw_scheme == 2) then
       ! The effective diameter must also be specified with clw_scheme 2
       ! call interpolate(state_handle, ens_size, loc, QTY_CLOUDWATER_DE, clouds%clwde(:, i), this_istatus)
-      !clouds%clwde(:, i) = 2*1e6*clouds%clwde(:, i)  ! convert from WRF variable radius in m to DART diameter in micrometer
-      call check_status('QTY_CLOUDWATER_DE', ens_size, this_istatus, val, loc, istatus, routine, source, revision, revdate, .false., return_now)
+      clouds%clwde(:, i) = 2*1e6*clouds%clwde(:, i)  ! convert from WRF variable radius in m to DART diameter in micrometer
+      !call check_status('QTY_CLOUDWATER_DE', ens_size, this_istatus, val, loc, istatus, routine, source, revision, revdate, .false., return_now)
       if (return_now) return
    end if
 
@@ -3764,8 +3793,8 @@ GETLEVELDATA : do i = 1,numlevels
       if (ice_scheme == 1 .and. use_icede) then
          ! if use_icede with ice_scheme 1, must also specify ice effective diameter
          !call interpolate(state_handle, ens_size, loc, QTY_CLOUD_ICE_DE, clouds%icede(:, i), this_istatus)
-         !clouds%icede(:, i) = 2*1e6*clouds%icede(:, i)  ! convert from WRF variable radius in m to DART diameter in micrometer
-         call check_status('QTY_CLOUD_ICE_DE', ens_size, this_istatus, val, loc, istatus, routine, source, revision, revdate, .false., return_now)
+         clouds%icede(:, i) = 2*1e6*clouds%icede(:, i)  ! convert from WRF variable radius in m to DART diameter in micrometer
+         !call check_status('QTY_CLOUD_ICE_DE', ens_size, this_istatus, val, loc, istatus, routine, source, revision, revdate, .false., return_now)
          if (return_now) return
       end if
    end if
@@ -3918,12 +3947,16 @@ call do_forward_model(ens_size=ens_size,                    &
                       radiances=val,                        &
                       error_status=this_istatus,            &
                       visir_md=visir_md,                    &
-                      mw_md=mw_md) 
+                      mw_md=mw_md, & 
+                      peakw=peakw )
 
 ! copy the status from this_istatus to istatus, set missing if error
 call track_status(ens_size, this_istatus, val, istatus, return_now)
 
 if (debug) then
+   obsloc_out   = get_location(location)
+   print*, 'location = ', obsloc_out(:)
+   print*, 'peakw    = ', peakw
    print*, 'istatus  = ', istatus 
    print*, 'radiance = ', val
 end if
