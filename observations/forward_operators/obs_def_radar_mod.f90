@@ -142,16 +142,16 @@ logical :: module_initialized = .false.
 ! expected units, etc.  Technically, the radar location is unused in the
 ! forward operators currently in this code, but it may be useful for post
 ! processing or diagnostics, especially if multiple radar locations are
-! in the same file.  
+! in the same file.
 type radial_vel_type
    private
-   type(location_type) :: radar_location      ! location of radar 
+   type(location_type) :: radar_location      ! location of radar
    real(r8)            :: beam_direction(3)   ! direction of beam
    real(r8)            :: nyquist_velocity    ! nyquist velocity
 end type radial_vel_type
 
 ! Cumulative index into radial velocity metadata array
-integer :: velkeycount = 0 
+integer :: velkeycount = 0
 
 ! For error message content
 character(len=256) :: msgstring
@@ -159,8 +159,8 @@ character(len=256) :: msgstring
 ! Values which are initialized at run time so some can be changed by
 ! namelist.  After initialization, treated as parameters (values not changed).
 
-! Note that the value of gravity is hardcoded here.  The value for gravity 
-! used in the model should match this value.   See additional comments 
+! Note that the value of gravity is hardcoded here.  The value for gravity
+! used in the model should match this value.   See additional comments
 ! below in the initialize_constants() subroutine.
 
 real(r8) :: param_gravity     ! gravitational acceleration (m s^-2)
@@ -183,7 +183,7 @@ real(r8) :: param_gam7f       !   (7+0.5)
 
                               ! exponents in equations for:
 real(r8) :: param_powr        !   rain fall speed
-real(r8) :: param_pows        !   snow fall speed 
+real(r8) :: param_pows        !   snow fall speed
 real(r8) :: param_powg_dry    !   dry graupel/hail fall speed
 real(r8) :: param_powg_wet    !   wet graupel/hail fall speed
 
@@ -203,12 +203,12 @@ real(r8) :: param_refl_dry_g  !   reflectivity from dry graupel/hail
 
 !-------------------------------------------------------------
 ! Namelist with default values
-! 
+!
 ! Obsolete: convert_to_dbz and dbz_threshold
 !  convert_to_dbz and dbz_threshold have both been removed from the namelist.
-!  Values will always be converted to dBZ, and threshold was only used to 
-!  ensure the log() call never saw a real 0.0_r8.  Please remove these 
-!  values from your namelist to avoid a run-time error. 
+!  Values will always be converted to dBZ, and threshold was only used to
+!  ensure the log() call never saw a real 0.0_r8.  Please remove these
+!  values from your namelist to avoid a run-time error.
 !
 ! There are two replicated sets of 3 namelist values below.
 ! In each case, there is 1 logical value and 2 numeric values.
@@ -228,21 +228,21 @@ real(r8) :: param_refl_dry_g  !   reflectivity from dry graupel/hail
 ! good idea to reset a good but small observation value to missing_r8 -- do
 ! not use it as the lowest_reflectivity setting.
 !
-! The next 3 namelist items apply to the incoming observation values.  
-! They are in the namelist so they can be changed at runtime, instead 
-! of set only when the observation file is originally generated. 
+! The next 3 namelist items apply to the incoming observation values.
+! They are in the namelist so they can be changed at runtime, instead
+! of set only when the observation file is originally generated.
 !
-! apply_ref_limit_to_obs:    
-!  Logical.  If .TRUE. replace all reflectivity values less than 
-!  "reflectivity_limit_obs" with "lowest_reflectivity_obs" value. 
+! apply_ref_limit_to_obs:
+!  Logical.  If .TRUE. replace all reflectivity values less than
+!  "reflectivity_limit_obs" with "lowest_reflectivity_obs" value.
 !  If .FALSE. leave all values as-is.  Defaults to .FALSE.
 !
-! reflectivity_limit_obs:    
+! reflectivity_limit_obs:
 !  The threshold value.  Observed reflectivity values less than this
 !  threshold will be set to the "lowest_reflectivity_obs" value.
 !  Units are dBZ.  Defaults to -10.0.
 !
-! lowest_reflectivity_obs:   
+! lowest_reflectivity_obs:
 !  The 'set-to' value.  Observed reflectivity values less than the
 !  threshold will be set to this value.  Units are dBZ.  Defaults to -10.0.
 !
@@ -250,13 +250,13 @@ real(r8) :: param_refl_dry_g  !   reflectivity from dry graupel/hail
 ! value from each ensemble member predicting what the observation value should
 ! be given the current state in this particular member).
 !
-! apply_ref_limit_to_fwd_op:  
+! apply_ref_limit_to_fwd_op:
 !  Same as "apply_ref_limit_to_obs", but for the forward operator.
 !
-! reflectivity_limit_fwd_op:  
+! reflectivity_limit_fwd_op:
 !  Same as "reflectivity_limit_obs", but for the forward operator values.
 !
-! lowest_reflectivity_fwd_op: 
+! lowest_reflectivity_fwd_op:
 !  Same as "lowest_reflectivity_obs", but for the forward operator values.
 !
 ! max_radial_vel_obs:
@@ -322,14 +322,14 @@ real(r8) :: param_refl_dry_g  !   reflectivity from dry graupel/hail
 !  snow aggregates). Expect questionable accuracy in radial velocity from
 !  the forward operator with high elevation angles where ice is present in
 !  the model state.
- 
+
 logical  :: apply_ref_limit_to_obs     = .false.
 real(r8) :: reflectivity_limit_obs     = -10.0_r8
 real(r8) :: lowest_reflectivity_obs    = -10.0_r8
 logical  :: apply_ref_limit_to_fwd_op  = .false.
 real(r8) :: reflectivity_limit_fwd_op  = -10.0_r8
 real(r8) :: lowest_reflectivity_fwd_op = -10.0_r8
-integer  :: max_radial_vel_obs         = 1000000
+integer  :: max_radial_vel_obs         = 10000000
 logical  :: allow_wet_graupel          = .false.
 integer  :: microphysics_type          = 2
 logical  :: allow_dbztowt_conv         = .false.
@@ -396,7 +396,7 @@ call find_namelist_in_file("input.nml", "obs_def_radar_mod_nml", iunit)
 read(iunit, nml = obs_def_radar_mod_nml, iostat = io)
 call check_namelist_read(iunit, io, "obs_def_radar_mod_nml")
 
-! Record the namelist values used for the run ... 
+! Record the namelist values used for the run ...
 if (do_nml_file()) write(nmlfileunit, nml=obs_def_radar_mod_nml)
 if (do_nml_term()) write(     *     , nml=obs_def_radar_mod_nml)
 
@@ -414,12 +414,12 @@ call check_namelist_limits(apply_ref_limit_to_obs,     &
 ! increase or decrease the number of obs supported and use more or less
 ! memory at run time.
 allocate(radial_vel_data(max_radial_vel_obs), stat = rc)
-if (rc /= 0) then            
+if (rc /= 0) then
    write(msgstring, *) 'initial allocation failed for radial vel obs data,', &
                        'itemcount = ', max_radial_vel_obs
    call error_handler(E_ERR,'initialize_module', msgstring, &
                       source, revision, revdate)
-endif                        
+endif
 
 ! Set the module global values that do not change during the run.
 ! This code uses some values which are set in the namelist, so this call
@@ -453,7 +453,7 @@ real(r8)            :: nyquist_velocity
 integer             :: oldkey
 
 ! radar_location: Refers to the lat/lon/height/vertical coordinate option
-!   for the radar. Its type is defined through location_type in location_mod. 
+!   for the radar. Its type is defined through location_type in location_mod.
 !   Uses the read_location function in location_mod.
 !
 ! beam_direction: This is a 3-element array specific to the radar module:
@@ -528,12 +528,12 @@ beam_direction(:) = radial_vel_data(velkey)%beam_direction(:)
 nyquist_velocity  = radial_vel_data(velkey)%nyquist_velocity
 
 ! write_location routine is part of the DART library and wants the optional
-! format string argument.  The other two routines are local to this module, 
-! and we have already figured out if it is a unformatted/binary file or 
+! format string argument.  The other two routines are local to this module,
+! and we have already figured out if it is a unformatted/binary file or
 ! formatted/ascii, so go ahead and pass that info directly down to the routines.
-call         write_location(ifile, radar_location,    fform) 
-call   write_beam_direction(ifile, beam_direction(:), is_asciifile) 
-call write_nyquist_velocity(ifile, nyquist_velocity,  is_asciifile) 
+call         write_location(ifile, radar_location,    fform)
+call   write_beam_direction(ifile, beam_direction(:), is_asciifile)
+call write_nyquist_velocity(ifile, nyquist_velocity,  is_asciifile)
 
 ! Write out the velkey used for this run, however this will be discarded
 ! when this observation is read in and a new key will be generated.
@@ -585,6 +585,13 @@ if (minval(beam_direction) < -1.0_r8 .or. maxval(beam_direction) > 1.0_r8) then
    call error_handler(E_ERR, 'read_beam_direction', msgstring, &
                       source, revision, revdate)
 endif
+if ( beam_direction(1) /= beam_direction(1) ) then
+   write(msgstring,*) "beam_direction value is NaN : ", &
+                       beam_direction(1), beam_direction(2), beam_direction(3)
+   !call error_handler(E_ERR, 'read_beam_direction', msgstring, &
+   !                   source, revision, revdate)
+endif
+
 
 ! set function return value
 read_beam_direction(:) = beam_direction(:)
@@ -604,7 +611,7 @@ logical,  intent(in) :: is_asciiformat
 if ( .not. module_initialized ) call initialize_module
 
 if (is_asciiformat) then
-   write(ifile, "('dir3d')" ) 
+   write(ifile, "('dir3d')" )
    write(ifile, *) beam_direction(1), beam_direction(2), beam_direction(3)
 else
    write(ifile)    beam_direction(1), beam_direction(2), beam_direction(3)
@@ -643,7 +650,7 @@ if (read_nyquist_velocity == missing_r8 .and. first_time) then
    call error_handler(E_MSG, 'read_nyquist_velocity:', &
                       "radar observation(s) with missing nyquist velocities encountered on read", &
                       source, revision, revdate, text2=msgstring)
- 
+
    first_time = .false.
 endif
 
@@ -712,7 +719,7 @@ real(r8),            intent(in)  :: nyquist_velocity
 if ( .not. module_initialized ) call initialize_module
 
 ! The total velocity metadata key count from all sequences
-velkeycount = velkeycount + 1    
+velkeycount = velkeycount + 1
 velkey = velkeycount             ! set the return value
 
 ! Simple error check on key number before accessing the array
@@ -737,8 +744,8 @@ integer, intent(out) :: velkey
 ! interactive_beam_direction and set_radial_vel.
 ! See read_radial_vel for more information.
 
-! velkey is internally incremented in the set routine, and only counts 
-! the index for this specialized observation kind. 
+! velkey is internally incremented in the set routine, and only counts
+! the index for this specialized observation kind.
 
 type(location_type)  :: location
 real(r8)             :: beam_direction(3)
@@ -799,7 +806,7 @@ real(r8), intent(out) :: beam_direction(3)
 real(r8) :: az, el
 
 az = -1.0
-do while (az < 0.0 .or. az > 360.0) 
+do while (az < 0.0 .or. az > 360.0)
    write(*, *) 'Input the beam direction azimuth in degrees (0 <= az <= 360):'
    read(*, *) az
 end do
@@ -903,6 +910,12 @@ where (istatus == 0)
 
 end where
 
+! NaN check, skip observation
+if ( radial_vel_data(velkey)%beam_direction(1) /= radial_vel_data(velkey)%beam_direction(1) ) then
+   radial_vel(:) = -99999.9
+   !return
+endif
+
 if (debug) then
    debug_location = get_location(location)
    print *
@@ -911,16 +924,19 @@ if (debug) then
                                     debug_location(2),         debug_location(3)
    print *, 'obs location (rad): ', debug_location(1)*deg2rad, &
                                     debug_location(2)*deg2rad, debug_location(3)
-   print *, 'interpolated u: ', u
-   print *, 'interpolated v: ', v
-   print *, 'interpolated w: ', w
+   print *, 'B1: ',  radial_vel_data(velkey)%beam_direction(1)
+   print *, 'B2: ',  radial_vel_data(velkey)%beam_direction(2)
+   print *, 'B3: ',  radial_vel_data(velkey)%beam_direction(3)
+   !print *, 'interpolated u: ', u
+   !print *, 'interpolated v: ', v
+   !print *, 'interpolated w: ', w
    print *, 'interp or derived fall speed: ', precip_fall_speed
    print *, 'final radial_vel: ', radial_vel
    print *, 'istatus: ', istatus
 endif
 
 end subroutine get_expected_radial_vel
- 
+
 !----------------------------------------------------------------------
 !----------------------------------------------------------------------
 ! Expected fall velocity section
@@ -1209,12 +1225,12 @@ end subroutine get_expected_radar_ref
 !----------------------------------------------------------------------
 
 subroutine get_LK_reflectivity(qr, qg, qs, rho, temp, ref)
- 
+
 ! Computes the equivalent radar reflectivity factor in mm^6 m^-3 for
-! simple single-moment microphysics schemes such as the Kessler and 
+! simple single-moment microphysics schemes such as the Kessler and
 ! Lin et al. schemes.  (Note:  the equivalent reflectivity factor is usually
 ! called simply "reflectivity" throughout this code.)  For more details
-! about the computations, see the initialize_constants subroutine and 
+! about the computations, see the initialize_constants subroutine and
 ! the references below.
 
 real(r8), intent(in)  :: qr, qg, qs ! rain,graupel,snow mixing ratios (kg kg^-1)
@@ -1243,7 +1259,7 @@ endif
 
 ! HAIL / GRAUPEL
 ! The exponent 1.6625 is 1.75*0.95.  The 0.95 factor is included as an
-! approximation for Mie scattering (Smith et al. 1975).  This approximation 
+! approximation for Mie scattering (Smith et al. 1975).  This approximation
 ! is appropriate for a 10-cm wavelength radar.
 
 if ( qg >= 1.0e-6_r8 ) then
@@ -1369,7 +1385,7 @@ end function dbztowt
 
 subroutine initialize_constants()
 
-! Initialize module global constants. 
+! Initialize module global constants.
 
 ! IMPORTANT: Uses namelist values, so this routine cannot be called until
 ! after the namelist has been read.
@@ -1378,20 +1394,20 @@ subroutine initialize_constants()
 ! model have input if it uses a slightly different value for G, or if it is
 ! working on a different planet with an entirely different set of constants.
 ! Question:  how much impact on the results does changing G have?
-! 
+!
 ! Most of the constants below are used for the computation of reflectivity and
 ! power-weighted precipitation fall speed from the model state.  Only simple
 ! single-moment microphysics schemes, such as the Kessler and Lin et al.
 ! schemes, are currently supported.  For these schemes, rain, snow, and
 ! graupel/hail are assumed to have inverse exponential size distributions:
-! 
+!
 !    n(D)=n0*exp(-lambda*D),
-! 
+!
 ! where D is the particle diameter, n is the number of particles per unit
 ! volume and per particle size interval, n0 is the intercept parameter, and
 ! lambda is the slope parameter.  Lambda is a function of the model-predicted
 ! hydrometeor mixing ratio and air density.
-! 
+!
 ! For Rayleigh scattering from a spherical raindrop, the reflectivity is
 ! proportional to the 6th moment of the raindrop's diameter.  The basic form of
 ! the complicated expressions below comes from integrating this relationship
@@ -1435,7 +1451,7 @@ param_powg_wet = 1.7875_r8
 ! complicated, so refer to "Radar observations in DART" by A. Caya for details.
 ! (A pdf of this paper is in the DART subversion repository.)
 ! The 0.95 exponenent in the equation for param_fs_wet_g is an approximation
-! for the effects of Mie scattering (Smith et al. 1975).  This approximation 
+! for the effects of Mie scattering (Smith et al. 1975).  This approximation
 ! is appropriate for a 10-cm wavelength radar.
 
 param_fs_r     = n0_rain * param_a * param_gam7b / &
@@ -1458,7 +1474,7 @@ param_fs_dry_g = 1.0e18_r8 * dielectric_factor *                               &
 ! following parameters are computed from the constants that do not vary in time
 ! and space.  Computing these parameters now means that the equations in the
 ! get_LK_reflectivity subroutine will have the following simple form:
-! 
+!
 !   ref = param_refl_r * (rho*qr)**1.75.
 !
 ! The 0.95 exponenent in the equation for param_refl_wet_g is an approximation
@@ -1469,7 +1485,7 @@ param_refl_r     = 7.2e20_r8 / (((PI*rho_rain)**1.75_r8)*(n0_rain**0.75_r8))
 
 param_refl_wet_s = 7.2e20_r8 / (((PI*rho_snow)**1.75_r8)*(n0_snow**0.75_r8))
 
-param_refl_dry_s = dielectric_factor * ((rho_snow/rho_rain)**2.0_r8) * & 
+param_refl_dry_s = dielectric_factor * ((rho_snow/rho_rain)**2.0_r8) * &
                  param_refl_wet_s
 
 param_refl_wet_g = (7.2e20_r8/(((PI*rho_graupel)**1.75_r8) * &
@@ -1491,8 +1507,8 @@ subroutine print_constants()
 
 ! The values in this list which are also in the namelist will have their
 ! values written by the write(nml=) code, but this routine includes all
-! the fixed constants so they are written in one place, both to standard 
-! output and the log file. Using the correct values is critical to doing 
+! the fixed constants so they are written in one place, both to standard
+! output and the log file. Using the correct values is critical to doing
 ! the appropriate computation, so some duplication is probably a good thing.
 
 write(msgstring, *) 'Constants used in the obs_def_radar module:'
@@ -1571,7 +1587,7 @@ end subroutine velkey_out_of_range
 !----------------------------------------------------------------------
 
 subroutine check_namelist_limits(apply_ref_limit_to_obs, &
-   reflectivity_limit_obs, lowest_reflectivity_obs, apply_ref_limit_to_fwd_op,& 
+   reflectivity_limit_obs, lowest_reflectivity_obs, apply_ref_limit_to_fwd_op,&
    reflectivity_limit_fwd_op, lowest_reflectivity_fwd_op)
 
 ! Consistency warning; print a message if the thresholds and lower values
@@ -1599,7 +1615,7 @@ if (apply_ref_limit_to_obs .and. apply_ref_limit_to_fwd_op) then
        (lowest_reflectivity_obs == lowest_reflectivity_fwd_op)) return
 endif
 
-! Either only one of the limits is on, and/or the limits or set-to 
+! Either only one of the limits is on, and/or the limits or set-to
 ! values do not match.  Print something to the log file to note that they
 ! are not the same.
 if (apply_ref_limit_to_obs) then
