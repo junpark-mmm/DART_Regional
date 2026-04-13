@@ -527,9 +527,6 @@ type(obs_sequence_type) :: supp_obs_seq
 type(obs_type)          :: obs_in, prev_obsi, prev_obso, obs
 type(time_type)         :: obs_time, prev_time
 type(time_type)         :: window_min, window_max
-type(time_type)         :: window_min_metar, window_max_metar
-type(time_type)         :: window_min_land, window_max_land
-type(time_type)         :: window_min_sfcshp, window_max_sfcshp
 type(get_close_type)    :: rgc
 type(location_type), allocatable  :: rbdyloclist(:)
 
@@ -590,12 +587,6 @@ if ( obs_window ) then
   dsec = nint(window_hours * 3600.)
   window_min = decrement_time(atime, dsec)
   window_max = increment_time(atime, dsec)
-  window_min_metar = decrement_time(atime, 540) ! 540s
-  window_max_metar = increment_time(atime, 540)
-  window_min_land = decrement_time(atime, 1800) ! 1800s
-  window_max_land = increment_time(atime, 1800)
-  window_min_sfcshp = decrement_time(atime, 330) ! 330s
-  window_max_sfcshp = increment_time(atime, 330)
   num_excluded_bytime    = 0   ! total number of obs beyond the time window
 end if
 
@@ -653,43 +644,6 @@ ObsLoop:  do while ( .not. last_obs ) ! loop over all observations in a sequence
       cycle ObsLoop
     end if
 
-    ! additionally reject SFC OBS
-    select case (okind)
-
-      case ( METAR_ALTIMETER, METAR_DEWPOINT_2_METER, METAR_RELATIVE_HUMIDITY_2_METER, &
-             METAR_SPECIFIC_HUMIDITY_2_METER, METAR_TEMPERATURE_2_METER, METAR_U_10_METER_WIND, &
-             METAR_V_10_METER_WIND )
-
-        if ( obs_time <= window_min_metar .or. obs_time > window_max_metar ) then ! windows_hours
-           prev_obsi = obs_in
-           call get_next_obs(supp_obs_seq, prev_obsi, obs_in, last_obs)
-           num_excluded_bytime = num_excluded_bytime + 1
-           cycle ObsLoop
-        end if
-
-      case ( LAND_SFC_ALTIMETER, LAND_SFC_DEWPOINT, &
-             LAND_SFC_RELATIVE_HUMIDITY, LAND_SFC_SPECIFIC_HUMIDITY, LAND_SFC_TEMPERATURE, &
-             LAND_SFC_U_WIND_COMPONENT, LAND_SFC_V_WIND_COMPONENT )
-
-        if ( obs_time <= window_min_land .or. obs_time > window_max_land ) then ! windows_hours
-           prev_obsi = obs_in
-           call get_next_obs(supp_obs_seq, prev_obsi, obs_in, last_obs)
-           num_excluded_bytime = num_excluded_bytime + 1
-           cycle ObsLoop
-        end if
-
-      case ( MARINE_SFC_ALTIMETER, &
-             MARINE_SFC_DEWPOINT, MARINE_SFC_RELATIVE_HUMIDITY, MARINE_SFC_SPECIFIC_HUMIDITY, &
-             MARINE_SFC_TEMPERATURE, MARINE_SFC_U_WIND_COMPONENT, MARINE_SFC_V_WIND_COMPONENT)
-
-        if ( obs_time <= window_min_sfcshp .or. obs_time > window_max_sfcshp ) then ! windows_hours
-           prev_obsi = obs_in
-           call get_next_obs(supp_obs_seq, prev_obsi, obs_in, last_obs)
-           num_excluded_bytime = num_excluded_bytime + 1
-           cycle ObsLoop
-        end if
-
-    end select 
   end if
 
   !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1177,9 +1131,6 @@ type(obs_def_type)      :: obs_def
 type(obs_sequence_type) :: seq
 type(obs_type)          :: obs, obs_in, prev_obs
 type(time_type)         :: window_min, window_max, obs_time
-type(time_type)         :: window_min_metar, window_max_metar
-type(time_type)         :: window_min_land, window_max_land
-type(time_type)         :: window_min_sfcshp, window_max_sfcshp
 
 integer                 :: rbdy
 type(get_close_type)    :: rgc
@@ -1212,12 +1163,6 @@ if ( obs_window ) then
      dsec = nint(window_hours * 3600.)
      window_min = decrement_time(atime, dsec)
      window_max = increment_time(atime, dsec)
-     window_min_metar = decrement_time(atime, 540) ! 540s
-     window_max_metar = increment_time(atime, 540)
-     window_min_land = decrement_time(atime, 1800) ! 1800s
-     window_max_land = increment_time(atime, 1800)
-     window_min_sfcshp = decrement_time(atime, 330) ! 330s
-     window_max_sfcshp = increment_time(atime, 330)
      call get_time(window_min,bsec,bday)
      call get_time(window_max,esec,eday)
      print*, 'including obs after ',bday,bsec,' up to and including',eday,esec
@@ -1278,44 +1223,6 @@ InputObsLoop:  do while ( .not. last_obs ) ! loop over all observations in a seq
          num_excluded_bytime = num_excluded_bytime + 1
          cycle InputObsLoop
     end if
-
-    ! additionally reject SFC OBS
-    select case (okind)
-
-      case ( METAR_ALTIMETER, METAR_DEWPOINT_2_METER, METAR_RELATIVE_HUMIDITY_2_METER, &
-             METAR_SPECIFIC_HUMIDITY_2_METER, METAR_TEMPERATURE_2_METER, METAR_U_10_METER_WIND, &
-             METAR_V_10_METER_WIND )
-
-        if ( obs_time <= window_min_metar .or. obs_time > window_max_metar ) then ! 9m
-           prev_obs = obs_in
-           call get_next_obs(seq, prev_obs, obs_in, last_obs)
-           num_excluded_bytime = num_excluded_bytime + 1
-           cycle InputObsLoop
-        end if
-
-      case ( LAND_SFC_ALTIMETER, LAND_SFC_DEWPOINT, &
-             LAND_SFC_RELATIVE_HUMIDITY, LAND_SFC_SPECIFIC_HUMIDITY, LAND_SFC_TEMPERATURE, &
-             LAND_SFC_U_WIND_COMPONENT, LAND_SFC_V_WIND_COMPONENT )
-
-        if ( obs_time <= window_min_land .or. obs_time > window_max_land ) then ! 30m
-           prev_obs = obs_in
-           call get_next_obs(seq, prev_obs, obs_in, last_obs)
-           num_excluded_bytime = num_excluded_bytime + 1
-           cycle InputObsLoop
-        end if
-
-      case ( MARINE_SFC_ALTIMETER, &
-             MARINE_SFC_DEWPOINT, MARINE_SFC_RELATIVE_HUMIDITY, MARINE_SFC_SPECIFIC_HUMIDITY, &
-             MARINE_SFC_TEMPERATURE, MARINE_SFC_U_WIND_COMPONENT, MARINE_SFC_V_WIND_COMPONENT)
-
-        if ( obs_time <= window_min_sfcshp .or. obs_time > window_max_sfcshp ) then ! 5m30s
-           prev_obs = obs_in
-           call get_next_obs(seq, prev_obs, obs_in, last_obs)
-           num_excluded_bytime = num_excluded_bytime + 1
-           cycle InputObsLoop
-        end if
-
-    end select 
   end if
 
   !  overwrite the observation time with the analysis time if desired
@@ -2380,16 +2287,16 @@ do while ( .not. last_obs )
                           platform_id, sat_id, sensor_id, channel, specularity)
    
   !  determine if observation exists
-  locdex = -1
-  do k = nloc, 1, -1
-    if ( obs_loc == Tbobs(k)%obs_loc .and. channel == Tbobs(k)%obs_md%channel ) then
-      locdex = k
-      exit
-    end if
+  !locdex = -1
+  !do k = nloc, 1, -1
+  !  if ( obs_loc == Tbobs(k)%obs_loc .and. channel == Tbobs(k)%obs_md%channel ) then
+  !    locdex = k
+  !    exit
+  !  end if
 
-  end do
+  !end do
 
-  if ( locdex < 1 ) then  !  create new observation type
+  !if ( locdex < 1 ) then  !  create new observation type
 
     ! test if we are within the cell of either pole, and punt for now on those 
     ! obs because we can't accurately average points that wrap the poles.
@@ -2401,33 +2308,33 @@ do while ( .not. last_obs )
     endif
      
     nloc = nloc + 1
-    locdex = nloc
+    !locdex = nloc
 
-    Tbobs(locdex)%lon      = llv_loc(1)
-    Tbobs(locdex)%lat      = llv_loc(2)
-    Tbobs(locdex)%obs_loc  = obs_loc
-    Tbobs(locdex)%Tb       = missing_r8
-    Tbobs(locdex)%Tb_truth = missing_r8
-    Tbobs(locdex)%time     = get_obs_def_time(obs_def)
+    Tbobs(nloc)%lon      = llv_loc(1)
+    Tbobs(nloc)%lat      = llv_loc(2)
+    Tbobs(nloc)%obs_loc  = obs_loc
+    Tbobs(nloc)%Tb       = missing_r8
+    Tbobs(nloc)%Tb_truth = missing_r8
+    Tbobs(nloc)%time     = get_obs_def_time(obs_def)
 
-    Tbobs(locdex)%obs_md%sat_az      = sat_az
-    Tbobs(locdex)%obs_md%sat_ze      = sat_ze
-    Tbobs(locdex)%obs_md%sun_az      = sun_az
-    Tbobs(locdex)%obs_md%sun_ze      = sun_ze
-    Tbobs(locdex)%obs_md%platform_id = platform_id
-    Tbobs(locdex)%obs_md%sat_id      = sat_id
-    Tbobs(locdex)%obs_md%sensor_id   = sensor_id
-    Tbobs(locdex)%obs_md%channel     = channel
-    Tbobs(locdex)%obs_md%specularity = specularity
+    Tbobs(nloc)%obs_md%sat_az      = sat_az
+    Tbobs(nloc)%obs_md%sat_ze      = sat_ze
+    Tbobs(nloc)%obs_md%sun_az      = sun_az
+    Tbobs(nloc)%obs_md%sun_ze      = sun_ze
+    Tbobs(nloc)%obs_md%platform_id = platform_id
+    Tbobs(nloc)%obs_md%sat_id      = sat_id
+    Tbobs(nloc)%obs_md%sensor_id   = sensor_id
+    Tbobs(nloc)%obs_md%channel     = channel
+    Tbobs(nloc)%obs_md%specularity = specularity
 
-  end if
+  !end if
 
   !  add observation information
   if(qc_val(1).lt.iqc_thres) then
-    Tbobs(locdex)%Tb     = obs_val(1)
-    Tbobs(locdex)%Tb_truth = truth_val(1)
-    Tbobs(locdex)%Tb_qc  = qc_val(1)
-    Tbobs(locdex)%Tb_err = get_obs_def_error_variance(obs_def)
+    Tbobs(nloc)%Tb     = obs_val(1)
+    Tbobs(nloc)%Tb_truth = truth_val(1)
+    Tbobs(nloc)%Tb_qc  = qc_val(1)
+    Tbobs(nloc)%Tb_err = get_obs_def_error_variance(obs_def)
   end if
 
 
