@@ -10,8 +10,9 @@
 #PBS -N JOB_NAME
 #PBS -A PROJ_NUMBER
 #PBS -j oe
-#PBS -q QUEUE
+#PBS -q main
 #PBS -l select=NODES:ncpus=NCPUS:mpiprocs=NPROC
+#PBS -l job_priority=QUEUE
 #PBS -l walltime=JOB_TIME
 ############################################
 if(! -e logs) mkdir logs
@@ -23,9 +24,12 @@ set myname = $0     # this is the name of this script
 set start_time = `date +%s`
 echo "host is " `hostname`
 
+if ( -e filter_done ) \rm -f filter_done
+
 echo $start_time >&! filter_started
 
-mpiexec_mpt dplace -s 1 ./filter     
+mpiexec ./filter     
+#mpiexec_mpt dplace -s 1 ./filter     
 wait
 
 if ( -e obs_seq.final )  touch filter_done

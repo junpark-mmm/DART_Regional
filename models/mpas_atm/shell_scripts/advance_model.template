@@ -4,27 +4,39 @@
 # by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
+# DART $Id: advance_model.template.lsf 10982 2017-02-01 23:43:10Z thoar@ucar.edu $
 #==================================================================
 #PBS -N JOB_NAME
 #PBS -A PROJ_NUMBER
-#PBS -o logs/JOB_NAME.log
+##PBS -o logs/JOB_NAME.log
 #PBS -j oe
-#PBS -q QUEUE
-#PBS -l select=NODES:ncpus=NCPUS:mpiprocs=NPROC
+#PBS -q main 
+#PBS -l job_priority=QUEUE
+#PBS -l select=NODES:mpiprocs=NPROC:ncpus=NCPUS:mem=235GB
 #PBS -l walltime=JOB_TIME
+#PBS -J 1-ENS_SIZE%6
 #==================================================================
- 
-set myname = $0     # this is the name of this script
+date
+
 set start_time = `date +%s`
 echo "host is " `hostname`
+set memid = ${PBS_ARRAY_INDEX}
 
 #  copy files to appropriate location
-echo $start_time >&! logs/start_memberENS_MEM
+#echo $start_time >&! logs/start_memberENS_MEM
 
 #  integrate the model forward in time
-./advance_model.csh ENS_MEM ENS_MEM
+./advance_model.csh $memid $memid MULTIPHYSICS
+#./advance_model.csh ENS_MEM ENS_MEM MULTIPHYSICS
+
+date
 
 set end_time = `date  +%s`
 @ length_time = $end_time - $start_time
 echo "duration_sec = $length_time"
+
+# <next few lines under version control, do not edit>
+# $URL: https://svn-dares-dart.cgd.ucar.edu/DART/releases/Manhattan/models/mpas_atm/shell_scripts/advance_model.template.lsf $
+# $Revision: 10982 $
+# $Date: 2017-02-01 16:43:10 -0700 (Wed, 01 Feb 2017) $
 

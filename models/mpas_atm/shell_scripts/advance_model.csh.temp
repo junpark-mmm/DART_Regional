@@ -53,7 +53,7 @@ endif
 
 # Do you want to save prior states before being overwritten at the next cycle?
 #-------------------------------------------------------------------
-set save_prior = true 
+set save_prior = false 
 
 # mpi command
 #-------------------------------------------------------------------
@@ -307,7 +307,8 @@ EOF
 
    # Back up some fields and clean up.
    #-------------------------------------------------------------------
-   set vlist = 'xtime,theta,rho,u,w,qv,qc,qr,qi,qs,qg,qh,uReconstructZonal,uReconstructMeridional,refl10cm,t2m,u10,v10,q2,surface_pressure'
+   set vlist = VARLIST 
+   # VARLIST= xtime,theta,rho,u,w,qv,qc,qr,qi,qs,qg,qh,uReconstructZonal,uReconstructMeridional,refl10cm,t2m,u10,v10,q2,surface_pressure
    # 'xtime,theta,rho,u,w,qv,qc,qr,uReconstructZonal,uReconstructMeridional'
    if($save_prior == true) then
       set fprior = prior.`echo ${targ_utc} | sed -e 's/:/\./g'`.nc
